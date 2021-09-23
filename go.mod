@@ -1,4 +1,4 @@
-module go-binance-api
+module github.com/LevZhurov/go-binance-api
 
 go 1.15
 
