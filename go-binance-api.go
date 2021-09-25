@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type (
@@ -90,6 +90,7 @@ func QueryCandlestickList(symbol string, interval TimeIntervals, startTime, endT
 }
 
 func getTimeIntervalDuration(interval TimeIntervals) time.Duration {
+	//TODO test
 	switch interval {
 	case TI_1m:
 		return time.Minute
@@ -126,6 +127,7 @@ func getTimeIntervalDuration(interval TimeIntervals) time.Duration {
 }
 
 func queryRange(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	//TODO test
 	startRange := startTime
 	intervalDuration := getTimeIntervalDuration(interval)
 	if intervalDuration == 0 {
@@ -160,6 +162,7 @@ func queryRange(symbol string, interval TimeIntervals, startTime, endTime time.T
 }
 
 func queryCandlestickRange(symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
+	//TODO test
 	retryAfter := "try"
 	var list []*Candlestick
 	for retryAfter != "" {
@@ -180,14 +183,9 @@ func queryCandlestickRange(symbol string, interval TimeIntervals, startRange, en
 
 func queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	//TODO test
-	config := mysql.Config{
-		User:   "root",
-		Passwd: "kakashulka",
-		Net:    "tcp",
-		Addr:   "127.0.0.1:3306",
-		DBName: "binance",
-	}
-	db, err := sql.Open("mysql", config.FormatDSN())
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		"root", "kakashulka", "127.0.0.1", "3306", "binance"))
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 		return nil
@@ -242,14 +240,8 @@ func queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTi
 
 func saveCandlestick(c *Candlestick) {
 	//TODO test
-	config := mysql.Config{
-		User:   "root",
-		Passwd: "kakashulka",
-		Net:    "tcp",
-		Addr:   "127.0.0.1:3306",
-		DBName: "binance",
-	}
-	db, err := sql.Open("mysql", config.FormatDSN())
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		"root", "kakashulka", "127.0.0.1", "3306", "binance"))
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 		return
@@ -287,6 +279,7 @@ func saveCandlestick(c *Candlestick) {
 }
 
 func tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
+	//TODO test
 	var param string
 
 	if symbol == "" {
