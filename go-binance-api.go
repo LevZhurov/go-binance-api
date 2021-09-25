@@ -1,6 +1,8 @@
 package binance_api
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,6 +11,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
 )
 
 type (
@@ -47,66 +51,91 @@ const (
 )
 
 func QueryCandlestickList(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-	limit := 1000
-	list := []*Candlestick{}
-
 	start, end := startTime.Truncate(time.Second), endTime.Truncate(time.Second)
-	startRange := start
-	var intervalDuration time.Duration
+	list := queryCandlestickSql(symbol, interval, start, end)
+
+	if list == nil {
+		list = queryRange(symbol, interval, start, end)
+	} else {
+		//определяем отсутствующие диапазоны
+		intervalDuration := getTimeIntervalDuration(interval)
+		if intervalDuration == 0 {
+			return nil
+		}
+		last := start
+		var emptyStart, emptyEnd time.Time
+		for i, c := range list {
+			if last != c.OpenTime {
+				if emptyStart.IsZero() {
+					emptyStart = last
+				}
+				emptyEnd = last
+			} else {
+				if !emptyStart.IsZero() {
+					list = append(
+						append(list[i:], queryRange(symbol, interval, emptyStart, emptyEnd)...),
+						list[:i]...,
+					)
+
+					emptyStart, emptyEnd = time.Time{}, time.Time{}
+				}
+			}
+			last = last.Add(intervalDuration)
+		}
+	}
+
+	//TODO проверить что сортировка не нужна в случае когда добавляли элементы
+	//TODO сортировать
+	return list
+}
+
+func getTimeIntervalDuration(interval TimeIntervals) time.Duration {
 	switch interval {
 	case TI_1m:
-		intervalDuration = time.Minute
+		return time.Minute
 	case TI_5m:
-		intervalDuration = 5 * time.Minute
+		return 5 * time.Minute
 	case TI_15m:
-		intervalDuration = 15 * time.Minute
+		return 15 * time.Minute
 	case TI_30m:
-		intervalDuration = 30 * time.Minute
+		return 30 * time.Minute
 	case TI_1h:
-		intervalDuration = time.Hour
+		return time.Hour
 	case TI_2h:
-		intervalDuration = 2 * time.Hour
+		return 2 * time.Hour
 	case TI_4h:
-		intervalDuration = 4 * time.Hour
+		return 4 * time.Hour
 	case TI_6h:
-		intervalDuration = 6 * time.Hour
+		return 6 * time.Hour
 	case TI_8h:
-		intervalDuration = 8 * time.Hour
+		return 8 * time.Hour
 	case TI_12h:
-		intervalDuration = 12 * time.Hour
+		return 12 * time.Hour
 	case TI_1d:
-		intervalDuration = 24 * time.Hour
+		return 24 * time.Hour
 	case TI_3d:
-		intervalDuration = 3 * 24 * time.Hour
+		return 3 * 24 * time.Hour
 	case TI_1w:
-		intervalDuration = 7 * 24 * time.Hour
+		return 7 * 24 * time.Hour
 	case TI_1M:
-		intervalDuration = 30 * 24 * time.Hour
+		return 30 * 24 * time.Hour
 	default:
 		log.Println("interval is not define", string(debug.Stack()))
+		return 0
+	}
+}
+
+func queryRange(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	startRange := startTime
+	intervalDuration := getTimeIntervalDuration(interval)
+	if intervalDuration == 0 {
 		return nil
 	}
 	endRange := startRange.Add(1000 * intervalDuration)
-
-	queryRange := func(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) []*Candlestick {
-		retryAfter := "try"
-		var list []*Candlestick
-		for retryAfter != "" {
-			list, _, retryAfter = queryCandlestickRange(symbol, interval, startRange, endRange, limit)
-			if retryAfter != "" {
-				after, err := strconv.Atoi(retryAfter)
-				if err != nil {
-					log.Println(err, string(debug.Stack()))
-					return nil
-				}
-				time.Sleep(time.Duration(after) * time.Second)
-			}
-		}
-		return list
-	}
-
-	for !endRange.After(end) {
-		l := queryRange(symbol, interval, startRange, endRange, limit)
+	limit := 1000
+	list := []*Candlestick{}
+	for !endRange.After(endTime) {
+		l := queryCandlestickRange(symbol, interval, startRange, endRange, limit)
 		if l == nil {
 			return list
 		}
@@ -115,17 +144,149 @@ func QueryCandlestickList(symbol string, interval TimeIntervals, startTime, endT
 		endRange = startRange.Add(1000 * intervalDuration)
 	}
 
-	limit = int((end.Sub(startRange) / intervalDuration).Nanoseconds()) + 1
-	l := queryRange(symbol, interval, startRange, end, limit)
+	limit = int((endTime.Sub(startRange) / intervalDuration).Nanoseconds()) + 1
+	l := queryCandlestickRange(symbol, interval, startRange, endTime, limit)
 	if l == nil {
 		return list
 	}
 	list = append(list, l...)
 
+	//сохранение в БД
+	for _, c := range list {
+		saveCandlestick(c)
+	}
+
 	return list
 }
 
-func queryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
+func queryCandlestickRange(symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
+	retryAfter := "try"
+	var list []*Candlestick
+	for retryAfter != "" {
+		list, _, retryAfter = tryQueryCandlestickRange(symbol, interval, startRange, endRange, limit)
+		if retryAfter != "" {
+			after, err := strconv.Atoi(retryAfter)
+			if err != nil {
+				log.Println(err, string(debug.Stack()))
+				return nil
+			}
+			log.Println("retryAfter", retryAfter)
+			time.Sleep(time.Duration(after) * time.Second)
+		}
+	}
+
+	return list
+}
+
+func queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	//TODO test
+	config := mysql.Config{
+		User:   "root",
+		Passwd: "kakashulka",
+		Net:    "tcp",
+		Addr:   "127.0.0.1:3306",
+		DBName: "binance",
+	}
+	db, err := sql.Open("mysql", config.FormatDSN())
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return nil
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	rows, err := db.QueryContext(ctx, "SELECT open_time, open, high, low, close, volume, close_time FROM candlestick WHERE symbol=? AND interval=? AND startTime BETWEEN ? AND ?",
+		symbol, interval, startTime, endTime)
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return nil
+	}
+	defer rows.Close()
+
+	list := []*Candlestick{}
+	for rows.Next() {
+		candle := &struct {
+			OpenTime  time.Time
+			Open      float64
+			High      float64
+			Low       float64
+			Close     float64
+			Volume    float64
+			CloseTime time.Time
+		}{}
+		err := rows.Scan(candle)
+		if err != nil {
+			log.Println(err, string(debug.Stack()))
+			return nil
+		}
+		list = append(list, &Candlestick{
+			OpenTime:  candle.OpenTime,
+			Open:      candle.Open,
+			High:      candle.High,
+			Low:       candle.Low,
+			Close:     candle.Close,
+			Volume:    candle.Volume,
+			CloseTime: candle.CloseTime,
+		})
+	}
+	return list
+}
+
+func saveCandlestick(c *Candlestick) {
+	//TODO test
+	config := mysql.Config{
+		User:   "root",
+		Passwd: "kakashulka",
+		Net:    "tcp",
+		Addr:   "127.0.0.1:3306",
+		DBName: "binance",
+	}
+	db, err := sql.Open("mysql", config.FormatDSN())
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return
+	}
+	defer tx.Commit()
+
+	stmt, err := tx.PrepareContext(ctx,
+		"INSERT candlestick(open_time, open, high, low, close, volume, close_time) VALUES (?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return
+	}
+	stmt.Close()
+
+	_, err = stmt.ExecContext(ctx, c.OpenTime, c.Open, c.High, c.Low, c.Close, c.Volume, c.CloseTime)
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+	}
+}
+
+func tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
 	var param string
 
 	if symbol == "" {
