@@ -202,7 +202,7 @@ func queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTi
 	defer cancel()
 
 	rows, err := db.QueryContext(ctx, "SELECT open_time, open, high, low, close, volume, close_time FROM candlestick WHERE symbol=? AND interval=? AND startTime BETWEEN ? AND ?",
-		symbol, interval, startTime, endTime)
+		symbol, string(interval), startTime, endTime)
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 		return nil
