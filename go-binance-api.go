@@ -155,7 +155,7 @@ func queryRange(symbol string, interval TimeIntervals, startTime, endTime time.T
 
 	//сохранение в БД
 	for _, c := range list {
-		saveCandlestick(c)
+		saveCandlestick(interval, symbol, c)
 	}
 
 	return list
@@ -241,7 +241,7 @@ func queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTi
 	return list
 }
 
-func saveCandlestick(c *Candlestick) {
+func saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) {
 	//TODO test
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
 		"root", "kakashulka", "127.0.0.1", "3306", "binance"))
@@ -268,9 +268,9 @@ func saveCandlestick(c *Candlestick) {
 	defer tx.Commit()
 
 	stmt, err := tx.PrepareContext(ctx, fmt.Sprintf(
-		`INSERT candlestick(open_time, open, high, low, close, volume, close_time) `+
-			`VALUES (%v, %v, %v, %v, %v, %v, %v);`,
-		c.OpenTime, c.Open, c.High, c.Low, c.Close, c.Volume, c.CloseTime))
+		`INSERT candlestick(interval, symbol, open_time, open, high, low, close, volume, close_time) `+
+			`VALUES ('%v', '%v', '%v', %v, %v, %v, %v, %v, '%v');`,
+		interval, symbol, c.OpenTime, c.Open, c.High, c.Low, c.Close, c.Volume, c.CloseTime))
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 		return
