@@ -267,15 +267,17 @@ func saveCandlestick(c *Candlestick) {
 	}
 	defer tx.Commit()
 
-	stmt, err := tx.PrepareContext(ctx,
-		"INSERT candlestick(open_time, open, high, low, close, volume, close_time) VALUES (?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.PrepareContext(ctx, fmt.Sprintf(
+		`INSERT candlestick(open_time, open, high, low, close, volume, close_time) `+
+			`VALUES (%v, %v, %v, %v, %v, %v, %v);`,
+		c.OpenTime, c.Open, c.High, c.Low, c.Close, c.Volume, c.CloseTime))
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 		return
 	}
-	stmt.Close()
+	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, c.OpenTime, c.Open, c.High, c.Low, c.Close, c.Volume, c.CloseTime)
+	_, err = stmt.ExecContext(ctx)
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 	}
