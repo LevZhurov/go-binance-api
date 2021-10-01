@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -147,6 +148,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 
 				//сохранение в БД
 				for _, c := range rangeList {
+					os.Exit(0)
 					b.db.saveCandlestick(interval, symbol, c)
 				}
 
