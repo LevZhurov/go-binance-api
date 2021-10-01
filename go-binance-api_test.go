@@ -33,7 +33,7 @@ func (bdb *binanceDatabaseTestImplementer) saveCandlestick(interval TimeInterval
 }
 func (bdb *binanceDatabaseTestImplementer) close() {}
 
-//go:linkname t_binanceDatabase_close go-binance-api.(*binanceDatabase).close
+//go:linkname t_binanceDatabase_close github.com/LevZhurov/go-binance-api.(*binanceDatabase).close
 func t_binanceDatabase_close(bdb *binanceDatabase)
 func Test_binanceDatabase_close(t *testing.T) {
 	autotest.FunctionTesting(t, t_binanceDatabase_close)
@@ -65,7 +65,7 @@ func (db *database_binance_QueryCandlestickList) saveCandlestick(interval TimeIn
 }
 func (db *database_binance_QueryCandlestickList) close() {}
 
-//go:linkname t_binance_QueryCandlestickList go-binance-api.(*binance).QueryCandlestickList
+//go:linkname t_binance_QueryCandlestickList github.com/LevZhurov/go-binance-api.(*binance).QueryCandlestickList
 func t_binance_QueryCandlestickList(b *binance, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
 func Test_binance_QueryCandlestickList(t *testing.T) {
 	autotest.FunctionTesting(t, t_binance_QueryCandlestickList, nil, testlog)
@@ -215,7 +215,7 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	}
 }
 
-//go:linkname t_binanceDatabase_queryCandlestickSql go-binance-api.(*binanceDatabase).queryCandlestickSql
+//go:linkname t_binanceDatabase_queryCandlestickSql github.com/LevZhurov/go-binance-api.(*binanceDatabase).queryCandlestickSql
 func t_binanceDatabase_queryCandlestickSql(bdb *binanceDatabase, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
 func Test_binanceDatabase_queryCandlestickSql(t *testing.T) {
 	autotest.FunctionTesting(t, t_binanceDatabase_queryCandlestickSql)
@@ -294,7 +294,7 @@ func Test_binanceDatabase_queryCandlestickSql(t *testing.T) {
 	}
 }
 
-//go:linkname t_binanceDatabase_saveCandlestick go-binance-api.(*binanceDatabase).saveCandlestick
+//go:linkname t_binanceDatabase_saveCandlestick github.com/LevZhurov/go-binance-api.(*binanceDatabase).saveCandlestick
 func t_binanceDatabase_saveCandlestick(bdb *binanceDatabase, interval TimeIntervals, symbol string, c *Candlestick)
 func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 	autotest.FunctionTesting(t, t_binanceDatabase_saveCandlestick)
@@ -453,7 +453,7 @@ func (bdb *binanceDatabase_binance_close) close() {
 	bdb.isClose = true
 }
 
-//go:linkname t_binance_Close go-binance-api.(*binance).Close
+//go:linkname t_binance_Close github.com/LevZhurov/go-binance-api.(*binance).Close
 func t_binance_Close(b *binance)
 func Test_binance_close(t *testing.T) {
 	autotest.FunctionTesting(t, t_binance_Close)
@@ -587,7 +587,7 @@ func Test_newBinanceSite(t *testing.T) {
 	require.Equal(t, "api/v3/klines", ds.queryCandlestick)
 }
 
-//go:linkname t_binanceSite_tryQueryCandlestickRange go-binance-api.(*binanceSite).tryQueryCandlestickRange
+//go:linkname t_binanceSite_tryQueryCandlestickRange github.com/LevZhurov/go-binance-api.(*binanceSite).tryQueryCandlestickRange
 func t_binanceSite_tryQueryCandlestickRange(bs *binanceSite, symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string)
 func Test_binanceSite_tryQueryCandlestickRange(t *testing.T) {
 	autotest.FunctionTesting(t, t_binanceSite_tryQueryCandlestickRange)
