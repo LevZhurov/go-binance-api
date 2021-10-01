@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -226,6 +227,17 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println(fmt.Sprintf(
+		"SELECT open_time, open, high, low, close, volume, close_time "+
+			"FROM candlestick "+
+			"WHERE symbol='%s' AND `interval`='%s' AND open_time BETWEEN '%v' AND '%v' "+
+			"ORDER BY open_time ASC;",
+		symbol,
+		interval,
+		startTime.Format("2006-01-02 15:04:05"),
+		endTime.Format("2006-01-02 15:04:05"),
+	))
+	os.Exit(0)
 	rows, err := bdb.db.QueryContext(ctx, fmt.Sprintf(
 		"SELECT open_time, open, high, low, close, volume, close_time "+
 			"FROM candlestick "+

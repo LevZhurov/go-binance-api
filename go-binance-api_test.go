@@ -105,9 +105,12 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 		isQueryRange = true
 		return []*Candlestick{}
 	}
+	start, _ := time.Parse("2006-01-02 15:04:05", "2021-09-23 00:00:00")
+	end, _ := time.Parse("2006-01-02 15:04:05", "2021-09-23 00:01:00")
 	db = &database_binance_QueryCandlestickList{
 		list: []*Candlestick{
-			&Candlestick{Open: 2.5},
+			&Candlestick{OpenTime: start, Open: 2.5},
+			&Candlestick{OpenTime: end, Open: 2.5},
 		},
 		saveList: []*Candlestick{},
 	}
@@ -116,10 +119,11 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 		queryRange: queryRange,
 	}
 	lc = newLogCollector()
-	list = bin.QueryCandlestickList(lc, "symbol", TI_1m, time.Time{}, time.Time{})
+	list = bin.QueryCandlestickList(lc, "symbol", TI_1m, start, end)
 	require.Equal(t, []string{}, lc.logs)
 	require.Equal(t, []*Candlestick{
-		&Candlestick{Open: 2.5},
+		&Candlestick{OpenTime: start, Open: 2.5},
+		&Candlestick{OpenTime: end, Open: 2.5},
 	}, list)
 	require.False(t, isQueryRange)
 	require.Equal(t, []*Candlestick{}, db.saveList)
