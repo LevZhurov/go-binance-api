@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"time"
 
@@ -50,47 +51,283 @@ const (
 	TI_1M  TimeIntervals = "1M"
 )
 
-func QueryCandlestickList(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-	start, end := startTime.Truncate(time.Second), endTime.Truncate(time.Second)
-	list := queryCandlestickSql(symbol, interval, start, end)
+type (
+	binance struct {
+		db                    databaser
+		site                  binanceSiter
+		queryRange            func(bin *binance, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+		queryCandlestickRange func(bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick
+	}
+	Binancer interface {
+		QueryCandlestickList(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+	}
+)
 
-	if list == nil {
-		list = queryRange(symbol, interval, start, end)
+func NewBinaceHandler() Binancer {
+	return &binance{
+		db:                    newBinanceMysqlDatabase("root", "kakashulka", "127.0.0.1", "3306", "binance"),
+		site:                  newBinanceSite(),
+		queryRange:            queryRange,
+		queryCandlestickRange: queryCandlestickRange,
+	}
+}
+
+func (b *binance) Close() {
+	if b == nil {
+		log.Println("b *binance is nil", string(debug.Stack()))
+		return
+	}
+	if b.db != nil {
+		b.db.close()
+	}
+}
+
+func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	if b == nil {
+		log.Println("b *binance is nil", string(debug.Stack()))
+		return nil
+	}
+	if b.db == nil {
+		log.Println("b.db databaser is nil", string(debug.Stack()))
+		return nil
+	}
+	if b.queryRange == nil {
+		log.Println("b.queryRange func is nil", string(debug.Stack()))
+		return nil
+	}
+
+	start, end := startTime.Truncate(time.Second), endTime.Truncate(time.Second)
+	list := b.db.queryCandlestickSql(symbol, interval, start, end)
+
+	if len(list) == 0 {
+		list = b.queryRange(b, log, symbol, interval, start, end)
+
+		//сохранение в БД
+		for _, c := range list {
+			b.db.saveCandlestick(interval, symbol, c)
+		}
 	} else {
 		//определяем отсутствующие диапазоны
-		intervalDuration := getTimeIntervalDuration(interval)
+		intervalDuration := getTimeIntervalDuration(log, interval)
 		if intervalDuration == 0 {
 			return nil
 		}
-		last := start
-		var emptyStart, emptyEnd time.Time
-		for i, c := range list {
-			if last != c.OpenTime {
-				if emptyStart.IsZero() {
-					emptyStart = last
-				}
-				emptyEnd = last
-			} else {
-				if !emptyStart.IsZero() {
-					list = append(
-						append(list[i:], queryRange(symbol, interval, emptyStart, emptyEnd)...),
-						list[:i]...,
-					)
 
-					emptyStart, emptyEnd = time.Time{}, time.Time{}
-				}
+		//с начала диапазона
+		if start.Before(list[0].OpenTime) {
+			//запрашиваем свечи пустого диапазона
+			rangeList := b.queryRange(b, log, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
+			list = append(rangeList, list...)
+
+			//сохранение в БД
+			for _, c := range rangeList {
+				b.db.saveCandlestick(interval, symbol, c)
 			}
+		}
+
+		last := start
+
+		for i, c := range list {
+			if last.Before(c.OpenTime) {
+				//получаем границы пустого диапазона
+				emptyStart := last
+				for last.Add(intervalDuration).Before(end) && last.Add(intervalDuration).Before(c.OpenTime) {
+					last = last.Add(intervalDuration)
+				}
+				emptyEnd := last
+
+				//запрашиваем свечи пустого диапазона
+				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
+
+				list = append(
+					append(list[i:], rangeList...),
+					list[:i]...,
+				)
+
+				//сохранение в БД
+				for _, c := range rangeList {
+					b.db.saveCandlestick(interval, symbol, c)
+				}
+
+				last = last.Add(intervalDuration)
+			}
+
 			last = last.Add(intervalDuration)
+		}
+
+		//с конца диапазона
+		if last.Add(-intervalDuration).Before(end) {
+			//запрашиваем свечи пустого диапазона
+			rangeList := b.queryRange(b, log, symbol, interval, last, end)
+			list = append(list, rangeList...)
+
+			//сохранение в БД
+			for _, c := range rangeList {
+				b.db.saveCandlestick(interval, symbol, c)
+			}
 		}
 	}
 
-	//TODO проверить что сортировка не нужна в случае когда добавляли элементы
-	//TODO сортировать
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].OpenTime.Before(list[j].OpenTime)
+	})
+
 	return list
 }
 
-func getTimeIntervalDuration(interval TimeIntervals) time.Duration {
-	//TODO test
+type (
+	binanceDatabase struct {
+		db *sql.DB
+	}
+	databaser interface {
+		queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+		saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error
+		close()
+	}
+)
+
+func newBinanceMysqlDatabase(user, passwd, addr, port, dbname string) databaser {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		user, passwd, addr, port, dbname))
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return nil
+	}
+	return &binanceDatabase{
+		db: db,
+	}
+}
+func (bdb *binanceDatabase) close() {
+	if bdb == nil {
+		log.Println("bdb *binanceDatabase is nil", string(debug.Stack()))
+		return
+	}
+	if bdb.db == nil {
+		return
+	}
+	bdb.db.Close()
+}
+func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	if bdb == nil {
+		log.Println("bdb *binanceDatabase is nil", string(debug.Stack()))
+		return nil
+	}
+	if bdb.db == nil {
+		log.Println("bdb.db *sql.DB is nil", string(debug.Stack()))
+		return nil
+	}
+	err := bdb.db.Ping()
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	rows, err := bdb.db.QueryContext(ctx, fmt.Sprintf(
+		"SELECT open_time, open, high, low, close, volume, close_time "+
+			"FROM candlestick "+
+			"WHERE symbol='%s' AND `interval`='%s' AND open_time BETWEEN '%v' AND '%v' "+
+			"ORDER BY open_time ASC;",
+		symbol,
+		interval,
+		startTime.Format("2006-01-02 15:04:05"),
+		endTime.Format("2006-01-02 15:04:05"),
+	))
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return nil
+	}
+	defer rows.Close()
+
+	list := []*Candlestick{}
+	for rows.Next() {
+		var (
+			OpenTime  string
+			Open      float64
+			High      float64
+			Low       float64
+			Close     float64
+			Volume    float64
+			CloseTime string
+		)
+		err := rows.Scan(&OpenTime, &Open, &High, &Low, &Close, &Volume, &CloseTime)
+		if err != nil {
+			log.Println(err, string(debug.Stack()))
+			return nil
+		}
+
+		ot, err := time.Parse("2006-01-02 15:04:05", OpenTime)
+		if err != nil {
+			log.Println(err, string(debug.Stack()))
+			return nil
+		}
+		ct, err := time.Parse("2006-01-02 15:04:05", CloseTime)
+		if err != nil {
+			log.Println(err, string(debug.Stack()))
+			return nil
+		}
+		list = append(list, &Candlestick{
+			OpenTime:  ot,
+			Open:      Open,
+			High:      High,
+			Low:       Low,
+			Close:     Close,
+			Volume:    Volume,
+			CloseTime: ct,
+		})
+	}
+	return list
+}
+func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error {
+	if bdb == nil {
+		log.Println("bdb *binanceDatabase is nil", string(debug.Stack()))
+		return nil
+	}
+	if bdb.db == nil {
+		log.Println("bdb.db *sql.DB is nil", string(debug.Stack()))
+		return nil
+	}
+
+	err := bdb.db.Ping()
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := bdb.db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
+			"VALUES ('?', '?', '?', ?, ?, ?, ?, ?, '?');",
+		interval,
+		symbol,
+		c.OpenTime.Format("2006-01-02 15:04:05"),
+		c.Open,
+		c.Close,
+		c.High,
+		c.Low,
+		c.Volume,
+		c.CloseTime.Format("2006-01-02 15:04:05"),
+	)
+	if err != nil {
+		log.Println(err, string(debug.Stack()))
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func getTimeIntervalDuration(log logger, interval TimeIntervals) time.Duration {
 	switch interval {
 	case TI_1m:
 		return time.Minute
@@ -126,10 +363,22 @@ func getTimeIntervalDuration(interval TimeIntervals) time.Duration {
 	}
 }
 
-func queryRange(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-	//TODO test
+func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	if bin == nil {
+		log.Println("bin *binance is nil", string(debug.Stack()))
+		return nil
+	}
+	if bin.queryCandlestickRange == nil {
+		log.Println("bin.queryCandlestickRange func is nil", string(debug.Stack()))
+		return nil
+	}
+	if log == nil {
+		log.Println("log logger is nil", string(debug.Stack()))
+		return nil
+	}
+
 	startRange := startTime
-	intervalDuration := getTimeIntervalDuration(interval)
+	intervalDuration := getTimeIntervalDuration(log, interval)
 	if intervalDuration == 0 {
 		return nil
 	}
@@ -137,36 +386,38 @@ func queryRange(symbol string, interval TimeIntervals, startTime, endTime time.T
 	limit := 1000
 	list := []*Candlestick{}
 	for !endRange.After(endTime) {
-		l := queryCandlestickRange(symbol, interval, startRange, endRange, limit)
+		l := bin.queryCandlestickRange(bin, symbol, interval, startRange, endRange, limit)
 		if l == nil {
 			return list
 		}
 		list = append(list, l...)
-		startRange = endRange
+		startRange = endRange.Add(intervalDuration)
 		endRange = startRange.Add(1000 * intervalDuration)
 	}
 
 	limit = int((endTime.Sub(startRange) / intervalDuration).Nanoseconds()) + 1
-	l := queryCandlestickRange(symbol, interval, startRange, endTime, limit)
+	l := bin.queryCandlestickRange(bin, symbol, interval, startRange, endTime, limit)
 	if l == nil {
 		return list
 	}
 	list = append(list, l...)
 
-	//сохранение в БД
-	for _, c := range list {
-		saveCandlestick(interval, symbol, c)
-	}
-
 	return list
 }
 
-func queryCandlestickRange(symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
-	//TODO test
+func queryCandlestickRange(bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
+	if bin == nil {
+		log.Println("bin *binance is nil", string(debug.Stack()))
+		return nil
+	}
+	if bin.site == nil {
+		log.Println("bin.site binanceSiter is nil", string(debug.Stack()))
+		return nil
+	}
 	retryAfter := "try"
 	var list []*Candlestick
 	for retryAfter != "" {
-		list, _, retryAfter = tryQueryCandlestickRange(symbol, interval, startRange, endRange, limit)
+		list, _, retryAfter = bin.site.tryQueryCandlestickRange(symbol, interval, startRange, endRange, limit)
 		if retryAfter != "" {
 			after, err := strconv.Atoi(retryAfter)
 			if err != nil {
@@ -181,110 +432,25 @@ func queryCandlestickRange(symbol string, interval TimeIntervals, startRange, en
 	return list
 }
 
-func queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-	//TODO test
-
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
-		"root", "kakashulka", "127.0.0.1", "3306", "binance"))
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return nil
+type (
+	binanceSite struct {
+		client           *http.Client
+		addressApi       string
+		queryCandlestick string
 	}
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return nil
+	binanceSiter interface {
+		tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string)
 	}
+)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	rows, err := db.QueryContext(ctx, fmt.Sprintf(
-		`SELECT c.open_time, c.open, c.high, c.low, c.close, c.volume, c.close_time `+
-			`FROM candlestick c `+
-			`WHERE c.symbol='%s' AND c.interval='%s' AND c.open_time BETWEEN '%v' AND '%v';`,
-		symbol, interval, startTime, endTime))
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return nil
-	}
-	defer rows.Close()
-
-	list := []*Candlestick{}
-	for rows.Next() {
-		candle := &struct {
-			OpenTime  time.Time
-			Open      float64
-			High      float64
-			Low       float64
-			Close     float64
-			Volume    float64
-			CloseTime time.Time
-		}{}
-		err := rows.Scan(candle)
-		if err != nil {
-			log.Println(err, string(debug.Stack()))
-			return nil
-		}
-		list = append(list, &Candlestick{
-			OpenTime:  candle.OpenTime,
-			Open:      candle.Open,
-			High:      candle.High,
-			Low:       candle.Low,
-			Close:     candle.Close,
-			Volume:    candle.Volume,
-			CloseTime: candle.CloseTime,
-		})
-	}
-	return list
-}
-
-func saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) {
-	//TODO test
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
-		"root", "kakashulka", "127.0.0.1", "3306", "binance"))
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return
-	}
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return
-	}
-	defer tx.Commit()
-
-	stmt, err := tx.PrepareContext(ctx, fmt.Sprintf(
-		`INSERT candlestick(interval, symbol, open_time, open, high, low, close, volume, close_time) `+
-			`VALUES ('%v', '%v', '%v', %v, %v, %v, %v, %v, '%v');`,
-		interval, symbol, c.OpenTime, c.Open, c.High, c.Low, c.Close, c.Volume, c.CloseTime))
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
-		return
-	}
-	defer stmt.Close()
-
-	_, err = stmt.ExecContext(ctx)
-	if err != nil {
-		log.Println(err, string(debug.Stack()))
+func newBinanceSite() *binanceSite {
+	return &binanceSite{
+		client:           &http.Client{},
+		addressApi:       "https://api.binance.com/",
+		queryCandlestick: "api/v3/klines",
 	}
 }
-
-func tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
-	//TODO test
+func (bs *binanceSite) tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
 	var param string
 
 	if symbol == "" {
@@ -307,9 +473,8 @@ func tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, 
 		param += "&limit=" + fmt.Sprintf("%v", limit)
 	}
 
-	//TODO брать client и адрес запроса из ресивера этого метода для безопасных тестов
-	client := http.Client{}
-	resp, err := client.Get("https://api.binance.com/api/v3/klines" + param)
+	//https://api.binance.com/api/v3/klines
+	resp, err := bs.client.Get(bs.addressApi + bs.queryCandlestick + param)
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
 		return
@@ -344,21 +509,25 @@ func tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, 
 	return
 }
 
-func parseCandlestick(item []interface{}) *Candlestick {
+func parseCandlestick(items []interface{}) *Candlestick {
+	if len(items) < 12 {
+		log.Println("len(items []interface{}) < 12")
+		return nil
+	}
 	lc := newLogCollector()
 	candlestick := &Candlestick{
-		OpenTime:                 time.Unix(0, parseInterfaceToInt64(lc, item[0])*int64(time.Millisecond)),
-		Open:                     parseInterfaceToFloat64(lc, item[1]),
-		High:                     parseInterfaceToFloat64(lc, item[2]),
-		Low:                      parseInterfaceToFloat64(lc, item[3]),
-		Close:                    parseInterfaceToFloat64(lc, item[4]),
-		Volume:                   parseInterfaceToFloat64(lc, item[5]),
-		CloseTime:                time.Unix(0, parseInterfaceToInt64(lc, item[6])*int64(time.Millisecond)),
-		QuoteAssetVolume:         parseInterfaceToFloat64(lc, item[7]),
-		NumberOfTrades:           parseInterfaceToInt(lc, item[8]),
-		TakerBuyBaseAssetVolume:  parseInterfaceToFloat64(lc, item[9]),
-		TakerBuyQuoteAssetVolume: parseInterfaceToFloat64(lc, item[10]),
-		Ignore:                   parseInterfaceToFloat64(lc, item[11]),
+		OpenTime:                 parseInterfaceToTime(lc, items[0]),
+		Open:                     parseInterfaceToFloat64(lc, items[1]),
+		High:                     parseInterfaceToFloat64(lc, items[2]),
+		Low:                      parseInterfaceToFloat64(lc, items[3]),
+		Close:                    parseInterfaceToFloat64(lc, items[4]),
+		Volume:                   parseInterfaceToFloat64(lc, items[5]),
+		CloseTime:                parseInterfaceToTime(lc, items[6]),
+		QuoteAssetVolume:         parseInterfaceToFloat64(lc, items[7]),
+		NumberOfTrades:           parseInterfaceToInt(lc, items[8]),
+		TakerBuyBaseAssetVolume:  parseInterfaceToFloat64(lc, items[9]),
+		TakerBuyQuoteAssetVolume: parseInterfaceToFloat64(lc, items[10]),
+		Ignore:                   parseInterfaceToFloat64(lc, items[11]),
 	}
 	if len(lc.logs) > 0 {
 		log.Println(lc)
@@ -367,8 +536,11 @@ func parseCandlestick(item []interface{}) *Candlestick {
 	return candlestick
 }
 
+func parseInterfaceToTime(log logger, val interface{}) time.Time {
+	return time.Unix(0, parseInterfaceToInt64(log, val)*int64(time.Millisecond))
+}
+
 func parseInterfaceToInt64(log logger, val interface{}) int64 {
-	//TODO test
 	switch v := val.(type) {
 	case int:
 		return int64(v)
@@ -381,7 +553,11 @@ func parseInterfaceToInt64(log logger, val interface{}) int64 {
 	case int64:
 		return v
 	case float64:
-		return int64(v)
+		if float64(int64(v)) == v {
+			return int64(v)
+		}
+		log.Printf("(%T) %v != (int64)\n%s", val, val, string(debug.Stack()))
+		return 0
 	default:
 		log.Printf("(%T) %v != (int64)\n%s", val, val, string(debug.Stack()))
 		return 0
@@ -389,7 +565,6 @@ func parseInterfaceToInt64(log logger, val interface{}) int64 {
 }
 
 func parseInterfaceToFloat64(log logger, val interface{}) float64 {
-	//TODO test
 	r, ok := val.(string)
 	if !ok {
 		log.Printf("(%T) %v != (string)\n%s", val, val, string(debug.Stack()))
@@ -404,12 +579,15 @@ func parseInterfaceToFloat64(log logger, val interface{}) float64 {
 }
 
 func parseInterfaceToInt(log logger, val interface{}) int {
-	//TODO test
 	switch v := val.(type) {
 	case int:
 		return v
 	case float64:
-		return int(v)
+		if float64(int(v)) == v {
+			return int(v)
+		}
+		log.Printf("(%T) %v != (int)\n%s", val, val, string(debug.Stack()))
+		return 0
 	default:
 		log.Printf("(%T) %v != (int)\n%s", val, val, string(debug.Stack()))
 		return 0
