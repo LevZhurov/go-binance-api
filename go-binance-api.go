@@ -60,6 +60,7 @@ type (
 	}
 	Binancer interface {
 		QueryCandlestickList(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+		Close()
 	}
 )
 
