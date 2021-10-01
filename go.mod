@@ -1,4 +1,4 @@
-module binance_api
+module go-binance-api
 
 go 1.15
 
