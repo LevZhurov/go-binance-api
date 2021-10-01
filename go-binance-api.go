@@ -227,7 +227,7 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Println(fmt.Sprintf(
+	log.Println(startTime, fmt.Sprintf(
 		"SELECT open_time, open, high, low, close, volume, close_time "+
 			"FROM candlestick "+
 			"WHERE symbol='%s' AND `interval`='%s' AND open_time BETWEEN '%v' AND '%v' "+
