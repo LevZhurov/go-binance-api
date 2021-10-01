@@ -309,7 +309,7 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
-			"VALUES ('?', '?', '?', ?, ?, ?, ?, ?, '?');",
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
 		interval,
 		symbol,
 		c.OpenTime.Format("2006-01-02 15:04:05"),
