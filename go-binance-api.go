@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -227,17 +226,6 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Println(startTime, fmt.Sprintf(
-		"SELECT open_time, open, high, low, close, volume, close_time "+
-			"FROM candlestick "+
-			"WHERE symbol='%s' AND `interval`='%s' AND open_time BETWEEN '%v' AND '%v' "+
-			"ORDER BY open_time ASC;",
-		symbol,
-		interval,
-		startTime.Format("2006-01-02 15:04:05"),
-		endTime.Format("2006-01-02 15:04:05"),
-	))
-	os.Exit(0)
 	rows, err := bdb.db.QueryContext(ctx, fmt.Sprintf(
 		"SELECT open_time, open, high, low, close, volume, close_time "+
 			"FROM candlestick "+
@@ -245,8 +233,8 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 			"ORDER BY open_time ASC;",
 		symbol,
 		interval,
-		startTime.Format("2006-01-02 15:04:05"),
-		endTime.Format("2006-01-02 15:04:05"),
+		startTime.In(time.UTC).Format("2006-01-02 15:04:05"),
+		endTime.In(time.UTC).Format("2006-01-02 15:04:05"),
 	))
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
@@ -271,12 +259,12 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 			return nil
 		}
 
-		ot, err := time.Parse("2006-01-02 15:04:05", OpenTime)
+		ot, err := time.ParseInLocation("2006-01-02 15:04:05", OpenTime, time.Local)
 		if err != nil {
 			log.Println(err, string(debug.Stack()))
 			return nil
 		}
-		ct, err := time.Parse("2006-01-02 15:04:05", CloseTime)
+		ct, err := time.ParseInLocation("2006-01-02 15:04:05", CloseTime, time.Local)
 		if err != nil {
 			log.Println(err, string(debug.Stack()))
 			return nil
@@ -324,13 +312,13 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
 		interval,
 		symbol,
-		c.OpenTime.Format("2006-01-02 15:04:05"),
+		c.OpenTime.In(time.UTC).Format("2006-01-02 15:04:05"),
 		c.Open,
 		c.Close,
 		c.High,
 		c.Low,
 		c.Volume,
-		c.CloseTime.Format("2006-01-02 15:04:05"),
+		c.CloseTime.In(time.UTC).Format("2006-01-02 15:04:05"),
 	)
 	if err != nil {
 		log.Println(err, string(debug.Stack()))
