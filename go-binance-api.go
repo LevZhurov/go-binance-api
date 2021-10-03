@@ -161,6 +161,8 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		}
 
 		last = last.Add(intervalDuration)
+		last = last.Add(intervalDuration)
+		last = last.Add(intervalDuration)
 		//с конца диапазона
 		if last.Before(end) {
 			log.Printf("с конца диапазона")
