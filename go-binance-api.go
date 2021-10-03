@@ -317,7 +317,7 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 					"VALUES ("+textArgs[:len(textArgs)-1]+");", args...,
 			)
 			if err != nil {
-				log.Println(err, string(debug.Stack()))
+				log.Println(err, string(debug.Stack()), "\n", textArgs[:len(textArgs)-1])
 				return err
 			}
 
@@ -347,7 +347,7 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 				"VALUES ("+textArgs[:len(textArgs)-1]+");", args...,
 		)
 		if err != nil {
-			log.Println(err, string(debug.Stack()))
+			log.Println(err, string(debug.Stack()), "\n", textArgs[:len(textArgs)-1])
 			return err
 		}
 	}

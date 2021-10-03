@@ -351,6 +351,59 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 				CloseTime: time.Date(2021, 9, 29, 20, 37, 00, 0, location),
 			}},
 		},
+		{
+			name: "ok multi",
+			mockBehavior: func() {
+				mock.ExpectBegin()
+
+				mock.ExpectExec("INSERT INTO candlestick").
+					WithArgs(
+						"1m",
+						"BTCUSDT",
+						"2021-09-29 20:36:00",
+						1.0,
+						42500.0,
+						43200.0,
+						42300.0,
+						12000.0,
+						"2021-09-29 20:37:00",
+						"1m",
+						"BTCUSDT",
+						"2021-09-29 20:36:00",
+						2.0,
+						42500.0,
+						43200.0,
+						42300.0,
+						12000.0,
+						"2021-09-29 20:37:00",
+					).
+					WillReturnResult(sqlmock.NewResult(1, 1))
+
+				mock.ExpectCommit()
+			},
+			inputInterval: TI_1m,
+			inputSymbol:   "BTCUSDT",
+			inputCandlestickList: []*Candlestick{
+				&Candlestick{
+					OpenTime:  time.Date(2021, 9, 29, 20, 36, 00, 0, location),
+					Open:      1,
+					High:      43200,
+					Low:       42300,
+					Close:     42500,
+					Volume:    12000,
+					CloseTime: time.Date(2021, 9, 29, 20, 37, 00, 0, location),
+				},
+				&Candlestick{
+					OpenTime:  time.Date(2021, 9, 29, 20, 36, 00, 0, location),
+					Open:      2,
+					High:      43200,
+					Low:       42300,
+					Close:     42500,
+					Volume:    12000,
+					CloseTime: time.Date(2021, 9, 29, 20, 37, 00, 0, location),
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testTable {
