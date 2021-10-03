@@ -118,12 +118,13 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		if start.Before(list[0].OpenTime) {
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(b, log, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
-			list = append(rangeList, list...)
 
 			//сохранение в БД
 			for _, c := range rangeList {
 				b.db.saveCandlestick(interval, symbol, c)
 			}
+
+			list = append(rangeList, list...)
 		}
 
 		last := start
@@ -140,15 +141,15 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 				//запрашиваем свечи пустого диапазона
 				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
 
-				list = append(
-					append(list[i:], rangeList...),
-					list[:i]...,
-				)
-
 				//сохранение в БД
 				for _, c := range rangeList {
 					b.db.saveCandlestick(interval, symbol, c)
 				}
+
+				list = append(
+					append(list[i:], rangeList...),
+					list[:i]...,
+				)
 
 				last = last.Add(intervalDuration)
 			}
@@ -160,12 +161,13 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		if last.Add(-intervalDuration).Before(end) {
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(b, log, symbol, interval, last, end)
-			list = append(list, rangeList...)
 
 			//сохранение в БД
 			for _, c := range rangeList {
 				b.db.saveCandlestick(interval, symbol, c)
 			}
+
+			list = append(list, rangeList...)
 		}
 	}
 
