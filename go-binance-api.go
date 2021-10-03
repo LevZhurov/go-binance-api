@@ -314,7 +314,7 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 		if kol > 100 {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
-					"VALUES ("+textArgs[:len(textArgs)-1]+");", args...,
+					"VALUES "+textArgs[:len(textArgs)-1]+";", args...,
 			)
 			if err != nil {
 				log.Println(err, string(debug.Stack()), "\n", textArgs[:len(textArgs)-1])
@@ -344,7 +344,7 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 	if kol > 0 {
 		_, err = tx.ExecContext(ctx,
 			"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
-				"VALUES ("+textArgs[:len(textArgs)-1]+");", args...,
+				"VALUES "+textArgs[:len(textArgs)-1]+";", args...,
 		)
 		if err != nil {
 			log.Println(err, string(debug.Stack()), "\n", textArgs[:len(textArgs)-1])
