@@ -160,8 +160,9 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			last = last.Add(intervalDuration)
 		}
 
+		last = last.Add(intervalDuration)
 		//с конца диапазона
-		if last.Add(intervalDuration).Before(end) {
+		if last.Before(end) {
 			log.Printf("с конца диапазона")
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(b, log, symbol, interval, last, end)
