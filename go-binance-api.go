@@ -135,7 +135,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 				emptyEnd := last
 
 				//запрашиваем свечи пустого диапазона
-				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
+				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd.Add(-intervalDuration))
 
 				//сохранение в БД
 				b.db.saveCandlestick(interval, symbol, rangeList)
