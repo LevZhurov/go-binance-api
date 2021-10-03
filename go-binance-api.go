@@ -123,16 +123,16 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			list = append(rangeList, list...)
 		}
 
-		last := start
+		last := list[0].OpenTime
 
 		for i, c := range list {
 			if last.Before(c.OpenTime) {
 				//получаем границы пустого диапазона
 				emptyStart := last
-				for last.Add(intervalDuration).Before(end) && last.Add(intervalDuration).Before(c.OpenTime) {
+				for last.Before(end) && last.Before(c.OpenTime) {
 					last = last.Add(intervalDuration)
 				}
-				emptyEnd := last
+				emptyEnd := last.Add(-intervalDuration)
 
 				//запрашиваем свечи пустого диапазона
 				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
@@ -145,15 +145,12 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 					list[:i]...,
 				)
 
-				last = last.Add(intervalDuration)
+				//last = last.Add(intervalDuration)
 			}
 
 			last = last.Add(intervalDuration)
 		}
 
-		last = last.Add(intervalDuration)
-		last = last.Add(intervalDuration)
-		last = last.Add(intervalDuration)
 		//с конца диапазона
 		if last.Before(end) {
 			//запрашиваем свечи пустого диапазона

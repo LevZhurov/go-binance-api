@@ -130,26 +130,33 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	///
 	//в базе есть данные не полностью
 	///
-	now := time.Now().Truncate(24 * time.Hour)
+	now, _ := time.Parse("2006-01-02 15:04:05", "2021-08-31 03:00:00")
+	now = now.Truncate(24 * time.Hour)
 	isQueryRange = false
 	queryRange = func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+		//lo.Printf("queryRange start %v end %v\n", startTime, endTime)
 		isQueryRange = true
 		if startTime.Equal(endTime) {
 			return []*Candlestick{
 				&Candlestick{OpenTime: startTime},
 			}
 		}
-		return []*Candlestick{
-			&Candlestick{OpenTime: startTime},
-			&Candlestick{OpenTime: endTime},
+		var list []*Candlestick
+		now := startTime
+		for now.Before(endTime) {
+			list = append(list, &Candlestick{OpenTime: now})
+			now = now.Add(getTimeIntervalDuration(lo, interval))
 		}
+		list = append(list, &Candlestick{OpenTime: now})
+		return list
 	}
 	db = &database_binance_QueryCandlestickList{
 		list: []*Candlestick{
-			&Candlestick{OpenTime: now.AddDate(0, 0, -9)},
-			&Candlestick{OpenTime: now.AddDate(0, 0, -7)},
-			&Candlestick{OpenTime: now.AddDate(0, 0, -4)},
-			&Candlestick{OpenTime: now.AddDate(0, 0, -1)},
+			&Candlestick{OpenTime: now.AddDate(0, 0, 3)},
+			&Candlestick{OpenTime: now.AddDate(0, 0, 8)},
+			&Candlestick{OpenTime: now.AddDate(0, 0, 11)},
+			&Candlestick{OpenTime: now.AddDate(0, 0, 13)},
+			&Candlestick{OpenTime: now.AddDate(0, 0, 17)},
 		},
 		saveList: []*Candlestick{},
 	}
@@ -158,22 +165,32 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 		queryRange: queryRange,
 	}
 	lc = newLogCollector()
-	list = bin.QueryCandlestickList(lc, "symbol", TI_1d, now.AddDate(0, 0, -10), now.AddDate(0, 0, 0))
+	list = bin.QueryCandlestickList(lc, "symbol", TI_1d, now.AddDate(0, 0, 0), now.AddDate(0, 0, 20))
 	require.Equal(t, []string{}, lc.logs)
 	require.True(t, isQueryRange)
 
 	expectedList := []*Candlestick{
-		&Candlestick{OpenTime: now.AddDate(0, 0, -10)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -9)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -8)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -7)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -6)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -5)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -4)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -3)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -2)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -1)},
 		&Candlestick{OpenTime: now.AddDate(0, 0, 0)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 1)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 2)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 3)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 4)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 5)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 6)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 7)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 8)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 9)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 10)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 11)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 12)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 13)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 14)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 15)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 16)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 17)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 18)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 19)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 20)},
 	}
 	for i, c := range list {
 		require.True(t, expectedList[i].OpenTime.Equal(c.OpenTime),
@@ -182,13 +199,22 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	}
 
 	expectedList = []*Candlestick{
-		&Candlestick{OpenTime: now.AddDate(0, 0, -10)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -8)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -6)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -5)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -3)},
-		&Candlestick{OpenTime: now.AddDate(0, 0, -2)},
 		&Candlestick{OpenTime: now.AddDate(0, 0, 0)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 1)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 2)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 4)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 5)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 6)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 7)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 9)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 10)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 12)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 14)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 15)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 16)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 18)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 19)},
+		&Candlestick{OpenTime: now.AddDate(0, 0, 20)},
 	}
 	for i, c := range db.saveList {
 		require.True(t, expectedList[i].OpenTime.Equal(c.OpenTime),
