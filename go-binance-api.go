@@ -280,6 +280,10 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 			CloseTime: ct,
 		})
 	}
+	//TODO убрать сортировку
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].OpenTime.Before(list[j].OpenTime)
+	})
 	return list
 }
 func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error {
