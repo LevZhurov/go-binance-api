@@ -101,7 +101,6 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 	list := b.db.queryCandlestickSql(symbol, interval, start, end)
 
 	if len(list) == 0 {
-		log.Printf("в базе пусто")
 		list = b.queryRange(b, log, symbol, interval, start, end)
 
 		//сохранение в БД
@@ -117,7 +116,6 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 
 		//с начала диапазона
 		if start.Before(list[0].OpenTime) {
-			log.Printf("с начала диапазона")
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(b, log, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
 
@@ -133,7 +131,6 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 
 		for i, c := range list {
 			if last.Before(c.OpenTime) {
-				log.Printf("середина диапазона")
 				//получаем границы пустого диапазона
 				emptyStart := last
 				for last.Add(intervalDuration).Before(end) && last.Add(intervalDuration).Before(c.OpenTime) {
@@ -165,7 +162,6 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		last = last.Add(intervalDuration)
 		//с конца диапазона
 		if last.Before(end) {
-			log.Printf("с конца диапазона")
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(b, log, symbol, interval, last, end)
 
@@ -226,9 +222,6 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 		log.Println("bdb.db *sql.DB is nil", string(debug.Stack()))
 		return nil
 	}
-	log.Printf("queryCandlestickSql startTime %v, endTime %v",
-		startTime, endTime,
-	)
 
 	err := bdb.db.Ping()
 	if err != nil {
@@ -391,9 +384,6 @@ func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals,
 		log.Println("log logger is nil", string(debug.Stack()))
 		return nil
 	}
-	log.Printf("queryRange startTime %v, endTime %v",
-		startTime, endTime,
-	)
 
 	startRange := startTime
 	intervalDuration := getTimeIntervalDuration(log, interval)
