@@ -57,15 +57,9 @@ type (
 )
 
 func (db *database_binance_QueryCandlestickList) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-	log.Printf("queryCandlestickSql startTime %v, endTime %v",
-		startTime, endTime,
-	)
 	return db.list
 }
 func (db *database_binance_QueryCandlestickList) saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error {
-	log.Printf("saveCandlestick OpenTime %v, CloseTime %v",
-		c.OpenTime, c.CloseTime,
-	)
 	db.saveList = append(db.saveList, c)
 	return nil
 }
@@ -76,17 +70,11 @@ func t_binance_QueryCandlestickList(b *binance, log logger, symbol string, inter
 func Test_binance_QueryCandlestickList(t *testing.T) {
 	autotest.FunctionTesting(t, t_binance_QueryCandlestickList, nil, testlog)
 
-	log.SetOutput(os.Stdout)
-	defer log.SetOutput(ioutil.Discard)
 	///
 	//в базе пусто
 	///
-	log.Println("в базе пусто")
 	var isQueryRange bool
 	queryRange := func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-		log.Printf("queryRange startTime %v, endTime %v",
-			startTime, endTime,
-		)
 		isQueryRange = true
 		return []*Candlestick{
 			&Candlestick{Open: 2.5},
@@ -111,12 +99,8 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	///
 	//в базе есть данные полностью
 	///
-	log.Println("в базе есть данные полностью")
 	isQueryRange = false
 	queryRange = func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-		log.Printf("queryRange startTime %v, endTime %v",
-			startTime, endTime,
-		)
 		isQueryRange = true
 		return []*Candlestick{}
 	}
@@ -146,13 +130,9 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	///
 	//в базе есть данные не полностью
 	///
-	log.Println("в базе есть данные не полностью")
 	now := time.Now().Truncate(24 * time.Hour)
 	isQueryRange = false
 	queryRange = func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
-		log.Printf("queryRange startTime %v, endTime %v",
-			startTime, endTime,
-		)
 		isQueryRange = true
 		if now.AddDate(0, 0, -10).Equal(startTime) && now.AddDate(0, 0, -10).Equal(endTime) {
 			return []*Candlestick{
