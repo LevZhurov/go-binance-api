@@ -104,9 +104,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		list = b.queryRange(b, log, symbol, interval, start, end)
 
 		//сохранение в БД
-		for _, c := range list {
-			b.db.saveCandlestick(interval, symbol, c)
-		}
+		b.db.saveCandlestick(interval, symbol, list)
 	} else {
 		//определяем отсутствующие диапазоны
 		intervalDuration := getTimeIntervalDuration(log, interval)
@@ -120,9 +118,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			rangeList := b.queryRange(b, log, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
 
 			//сохранение в БД
-			for _, c := range rangeList {
-				b.db.saveCandlestick(interval, symbol, c)
-			}
+			b.db.saveCandlestick(interval, symbol, rangeList)
 
 			list = append(rangeList, list...)
 		}
@@ -142,9 +138,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
 
 				//сохранение в БД
-				for _, c := range rangeList {
-					b.db.saveCandlestick(interval, symbol, c)
-				}
+				b.db.saveCandlestick(interval, symbol, rangeList)
 
 				list = append(
 					append(list[i:], rangeList...),
@@ -166,9 +160,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			rangeList := b.queryRange(b, log, symbol, interval, last, end)
 
 			//сохранение в БД
-			for _, c := range rangeList {
-				b.db.saveCandlestick(interval, symbol, c)
-			}
+			b.db.saveCandlestick(interval, symbol, rangeList)
 
 			list = append(list, rangeList...)
 		}
@@ -187,7 +179,7 @@ type (
 	}
 	databaser interface {
 		queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
-		saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error
+		saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error
 		close()
 	}
 )
@@ -288,7 +280,7 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 
 	return list
 }
-func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error {
+func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error {
 	if bdb == nil {
 		log.Println("bdb *binanceDatabase is nil", string(debug.Stack()))
 		return nil
@@ -314,18 +306,43 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 	}
 	defer tx.Rollback()
 
+	var kol int
+	args := []interface{}{}
+	var textArgs string
+	for _, c := range list {
+		if kol > 100 {
+			_, err = tx.ExecContext(ctx,
+				"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
+					"VALUES ("+textArgs[:len(textArgs)-1]+");", args...,
+			)
+			if err != nil {
+				log.Println(err, string(debug.Stack()))
+				return err
+			}
+
+			args = []interface{}{}
+			textArgs = ""
+		}
+
+		args = append(args,
+			interval,
+			symbol,
+			c.OpenTime.In(time.UTC).Format("2006-01-02 15:04:05"),
+			c.Open,
+			c.Close,
+			c.High,
+			c.Low,
+			c.Volume,
+			c.CloseTime.In(time.UTC).Format("2006-01-02 15:04:05"),
+		)
+		textArgs += "(?, ?, ?, ?, ?, ?, ?, ?, ?),"
+
+		kol++
+	}
+
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
-		interval,
-		symbol,
-		c.OpenTime.In(time.UTC).Format("2006-01-02 15:04:05"),
-		c.Open,
-		c.Close,
-		c.High,
-		c.Low,
-		c.Volume,
-		c.CloseTime.In(time.UTC).Format("2006-01-02 15:04:05"),
+			"VALUES ("+textArgs[:len(textArgs)-1]+");", args...,
 	)
 	if err != nil {
 		log.Println(err, string(debug.Stack()))

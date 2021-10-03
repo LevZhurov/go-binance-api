@@ -28,7 +28,7 @@ type binanceDatabaseTestImplementer struct{}
 func (bdb *binanceDatabaseTestImplementer) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	return nil
 }
-func (bdb *binanceDatabaseTestImplementer) saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error {
+func (bdb *binanceDatabaseTestImplementer) saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error {
 	return nil
 }
 func (bdb *binanceDatabaseTestImplementer) close() {}
@@ -59,8 +59,8 @@ type (
 func (db *database_binance_QueryCandlestickList) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	return db.list
 }
-func (db *database_binance_QueryCandlestickList) saveCandlestick(interval TimeIntervals, symbol string, c *Candlestick) error {
-	db.saveList = append(db.saveList, c)
+func (db *database_binance_QueryCandlestickList) saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error {
+	db.saveList = append(db.saveList, list...)
 	return nil
 }
 func (db *database_binance_QueryCandlestickList) close() {}
@@ -295,7 +295,7 @@ func Test_binanceDatabase_queryCandlestickSql(t *testing.T) {
 }
 
 //go:linkname t_binanceDatabase_saveCandlestick github.com/LevZhurov/go-binance-api.(*binanceDatabase).saveCandlestick
-func t_binanceDatabase_saveCandlestick(bdb *binanceDatabase, interval TimeIntervals, symbol string, c *Candlestick)
+func t_binanceDatabase_saveCandlestick(bdb *binanceDatabase, interval TimeIntervals, symbol string, list []*Candlestick) error
 func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 	autotest.FunctionTesting(t, t_binanceDatabase_saveCandlestick)
 
@@ -311,12 +311,12 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 	}
 
 	testTable := []struct {
-		name             string
-		mockBehavior     func()
-		inputInterval    TimeIntervals
-		inputSymbol      string
-		inputCandlestick *Candlestick
-		wantErr          bool
+		name                 string
+		mockBehavior         func()
+		inputInterval        TimeIntervals
+		inputSymbol          string
+		inputCandlestickList []*Candlestick
+		wantErr              bool
 	}{
 		{
 			name: "ok",
@@ -341,7 +341,7 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 			},
 			inputInterval: TI_1m,
 			inputSymbol:   "BTCUSDT",
-			inputCandlestick: &Candlestick{
+			inputCandlestickList: []*Candlestick{&Candlestick{
 				OpenTime:  time.Date(2021, 9, 29, 20, 36, 00, 0, location),
 				Open:      43000,
 				High:      43200,
@@ -349,7 +349,7 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 				Close:     42500,
 				Volume:    12000,
 				CloseTime: time.Date(2021, 9, 29, 20, 37, 00, 0, location),
-			},
+			}},
 		},
 	}
 
@@ -360,7 +360,7 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 			err := bdb.saveCandlestick(
 				testCase.inputInterval,
 				testCase.inputSymbol,
-				testCase.inputCandlestick,
+				testCase.inputCandlestickList,
 			)
 			if testCase.wantErr {
 				require.Error(t, err)
