@@ -134,34 +134,15 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	isQueryRange = false
 	queryRange = func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 		isQueryRange = true
-		if now.AddDate(0, 0, -10).Equal(startTime) && now.AddDate(0, 0, -10).Equal(endTime) {
+		if startTime.Equal(endTime) {
 			return []*Candlestick{
-				&Candlestick{OpenTime: now.AddDate(0, 0, -10)},
+				&Candlestick{OpenTime: startTime},
 			}
 		}
-		if now.AddDate(0, 0, -8).Equal(startTime) && now.AddDate(0, 0, -8).Equal(endTime) {
-			return []*Candlestick{
-				&Candlestick{OpenTime: now.AddDate(0, 0, -8)},
-			}
+		return []*Candlestick{
+			&Candlestick{OpenTime: startTime},
+			&Candlestick{OpenTime: endTime},
 		}
-		if now.AddDate(0, 0, -6).Equal(startTime) && now.AddDate(0, 0, -5).Equal(endTime) {
-			return []*Candlestick{
-				&Candlestick{OpenTime: now.AddDate(0, 0, -6)},
-				&Candlestick{OpenTime: now.AddDate(0, 0, -5)},
-			}
-		}
-		if now.AddDate(0, 0, -3).Equal(startTime) && now.AddDate(0, 0, -2).Equal(endTime) {
-			return []*Candlestick{
-				&Candlestick{OpenTime: now.AddDate(0, 0, -3)},
-				&Candlestick{OpenTime: now.AddDate(0, 0, -2)},
-			}
-		}
-		if now.AddDate(0, 0, 0).Equal(startTime) && now.AddDate(0, 0, 0).Equal(endTime) {
-			return []*Candlestick{
-				&Candlestick{OpenTime: now.AddDate(0, 0, 0)},
-			}
-		}
-		return []*Candlestick{}
 	}
 	db = &database_binance_QueryCandlestickList{
 		list: []*Candlestick{
