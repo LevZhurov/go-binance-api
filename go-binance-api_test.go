@@ -25,10 +25,10 @@ func Test_prepare(t *testing.T) {
 
 type binanceDatabaseTestImplementer struct{}
 
-func (bdb *binanceDatabaseTestImplementer) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+func (bdb *binanceDatabaseTestImplementer) queryCandlestickSql(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	return nil
 }
-func (bdb *binanceDatabaseTestImplementer) saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error {
+func (bdb *binanceDatabaseTestImplementer) saveCandlestick(log logger, interval TimeIntervals, symbol string, list []*Candlestick) error {
 	return nil
 }
 func (bdb *binanceDatabaseTestImplementer) close() {}
@@ -51,19 +51,19 @@ func Test_NewBinaceHandler(t *testing.T) {
 
 type (
 	database_binance_QueryCandlestickList struct {
+		binanceDatabaseTestImplementer
 		list     []*Candlestick
 		saveList []*Candlestick
 	}
 )
 
-func (db *database_binance_QueryCandlestickList) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+func (db *database_binance_QueryCandlestickList) queryCandlestickSql(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	return db.list
 }
-func (db *database_binance_QueryCandlestickList) saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error {
+func (db *database_binance_QueryCandlestickList) saveCandlestick(log logger, interval TimeIntervals, symbol string, list []*Candlestick) error {
 	db.saveList = append(db.saveList, list...)
 	return nil
 }
-func (db *database_binance_QueryCandlestickList) close() {}
 
 //go:linkname t_binance_QueryCandlestickList github.com/LevZhurov/go-binance-api.(*binance).QueryCandlestickList
 func t_binance_QueryCandlestickList(b *binance, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
@@ -223,9 +223,9 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 }
 
 //go:linkname t_binanceDatabase_queryCandlestickSql github.com/LevZhurov/go-binance-api.(*binanceDatabase).queryCandlestickSql
-func t_binanceDatabase_queryCandlestickSql(bdb *binanceDatabase, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+func t_binanceDatabase_queryCandlestickSql(bdb *binanceDatabase, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
 func Test_binanceDatabase_queryCandlestickSql(t *testing.T) {
-	autotest.FunctionTesting(t, t_binanceDatabase_queryCandlestickSql)
+	autotest.FunctionTesting(t, t_binanceDatabase_queryCandlestickSql, nil, testlog)
 
 	location, _ := time.LoadLocation("UTC")
 	db, mock, err := sqlmock.New()
@@ -279,6 +279,7 @@ func Test_binanceDatabase_queryCandlestickSql(t *testing.T) {
 
 			// }
 			list := bdb.queryCandlestickSql(
+				testlog,
 				"BTCUSDT",
 				TI_1m,
 				time.Date(2021, 9, 30, 20, 36, 00, 0, location),
@@ -302,9 +303,9 @@ func Test_binanceDatabase_queryCandlestickSql(t *testing.T) {
 }
 
 //go:linkname t_binanceDatabase_saveCandlestick github.com/LevZhurov/go-binance-api.(*binanceDatabase).saveCandlestick
-func t_binanceDatabase_saveCandlestick(bdb *binanceDatabase, interval TimeIntervals, symbol string, list []*Candlestick) error
+func t_binanceDatabase_saveCandlestick(bdb *binanceDatabase, log logger, interval TimeIntervals, symbol string, list []*Candlestick) error
 func Test_binanceDatabase_saveCandlestick(t *testing.T) {
-	autotest.FunctionTesting(t, t_binanceDatabase_saveCandlestick)
+	autotest.FunctionTesting(t, t_binanceDatabase_saveCandlestick, nil, testlog)
 
 	location, _ := time.LoadLocation("UTC")
 	db, mock, err := sqlmock.New()
@@ -418,6 +419,7 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 			testCase.mockBehavior()
 
 			err := bdb.saveCandlestick(
+				testlog,
 				testCase.inputInterval,
 				testCase.inputSymbol,
 				testCase.inputCandlestickList,

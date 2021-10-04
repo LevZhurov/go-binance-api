@@ -98,13 +98,13 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 	}
 
 	start, end := startTime.Truncate(time.Second), endTime.Truncate(time.Second)
-	list := b.db.queryCandlestickSql(symbol, interval, start, end)
+	list := b.db.queryCandlestickSql(log, symbol, interval, start, end)
 
 	if len(list) == 0 {
 		list = b.queryRange(b, log, symbol, interval, start, end)
 
 		//сохранение в БД
-		b.db.saveCandlestick(interval, symbol, list)
+		b.db.saveCandlestick(log, interval, symbol, list)
 	} else {
 		//определяем отсутствующие диапазоны
 		intervalDuration := getTimeIntervalDuration(log, interval)
@@ -118,7 +118,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			rangeList := b.queryRange(b, log, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
 
 			//сохранение в БД
-			b.db.saveCandlestick(interval, symbol, rangeList)
+			b.db.saveCandlestick(log, interval, symbol, rangeList)
 
 			list = append(rangeList, list...)
 		}
@@ -138,7 +138,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
 
 				//сохранение в БД
-				b.db.saveCandlestick(interval, symbol, rangeList)
+				b.db.saveCandlestick(log, interval, symbol, rangeList)
 
 				list = append(
 					append(list[i:], rangeList...),
@@ -157,7 +157,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			rangeList := b.queryRange(b, log, symbol, interval, last, end)
 
 			//сохранение в БД
-			b.db.saveCandlestick(interval, symbol, rangeList)
+			b.db.saveCandlestick(log, interval, symbol, rangeList)
 
 			list = append(list, rangeList...)
 		}
@@ -175,8 +175,8 @@ type (
 		db *sql.DB
 	}
 	databaser interface {
-		queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
-		saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error
+		queryCandlestickSql(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+		saveCandlestick(log logger, interval TimeIntervals, symbol string, list []*Candlestick) error
 		close()
 	}
 )
@@ -202,7 +202,7 @@ func (bdb *binanceDatabase) close() {
 	}
 	bdb.db.Close()
 }
-func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+func (bdb *binanceDatabase) queryCandlestickSql(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	if bdb == nil {
 		log.Println("bdb *binanceDatabase is nil", string(debug.Stack()))
 		return nil
@@ -211,6 +211,9 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 		log.Println("bdb.db *sql.DB is nil", string(debug.Stack()))
 		return nil
 	}
+	log.Printf("queryCandlestickSql startTime %v, endTime %v",
+		startTime, endTime,
+	)
 
 	err := bdb.db.Ping()
 	if err != nil {
@@ -275,9 +278,12 @@ func (bdb *binanceDatabase) queryCandlestickSql(symbol string, interval TimeInte
 		})
 	}
 
+	log.Printf("queryCandlestickSql return len(%v) start %v, end %v",
+		len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
+	)
 	return list
 }
-func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol string, list []*Candlestick) error {
+func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, symbol string, list []*Candlestick) error {
 	if bdb == nil {
 		log.Println("bdb *binanceDatabase is nil", string(debug.Stack()))
 		return nil
@@ -286,6 +292,9 @@ func (bdb *binanceDatabase) saveCandlestick(interval TimeIntervals, symbol strin
 		log.Println("bdb.db *sql.DB is nil", string(debug.Stack()))
 		return nil
 	}
+	log.Printf("saveCandlestick  len(%v) start %v, end %v",
+		len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
+	)
 
 	err := bdb.db.Ping()
 	if err != nil {
@@ -400,6 +409,9 @@ func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals,
 		log.Println("log logger is nil", string(debug.Stack()))
 		return nil
 	}
+	log.Printf("queryRange startTime %v, endTime %v",
+		startTime, endTime,
+	)
 
 	startRange := startTime
 	intervalDuration := getTimeIntervalDuration(log, interval)
@@ -426,6 +438,9 @@ func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals,
 	}
 	list = append(list, l...)
 
+	log.Printf("queryRange return len(%v) start %v, end %v",
+		len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
+	)
 	return list
 }
 
