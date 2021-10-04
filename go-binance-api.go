@@ -315,7 +315,13 @@ func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, 
 	var kol int
 	args := []interface{}{}
 	var textArgs string
+	prevCandle := &Candlestick{}
 	for _, c := range list {
+		if prevCandle.OpenTime.Equal(c.OpenTime) {
+			log.Printf("Candle duplicate prev %v current %v", prevCandle, c)
+			continue
+		}
+		prevCandle = c
 		if kol > 100 {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+

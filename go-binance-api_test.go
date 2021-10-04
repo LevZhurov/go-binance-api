@@ -368,13 +368,13 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 					WithArgs(
 						"1m",
 						"BTCUSDT",
-						"2021-09-29 20:36:00",
+						"2021-09-29 20:35:00",
 						1.0,
 						42500.0,
 						43200.0,
 						42300.0,
 						12000.0,
-						"2021-09-29 20:37:00",
+						"2021-09-29 20:36:00",
 						"1m",
 						"BTCUSDT",
 						"2021-09-29 20:36:00",
@@ -393,13 +393,13 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 			inputSymbol:   "BTCUSDT",
 			inputCandlestickList: []*Candlestick{
 				&Candlestick{
-					OpenTime:  time.Date(2021, 9, 29, 20, 36, 00, 0, location),
+					OpenTime:  time.Date(2021, 9, 29, 20, 35, 00, 0, location),
 					Open:      1,
 					High:      43200,
 					Low:       42300,
 					Close:     42500,
 					Volume:    12000,
-					CloseTime: time.Date(2021, 9, 29, 20, 37, 00, 0, location),
+					CloseTime: time.Date(2021, 9, 29, 20, 36, 00, 0, location),
 				},
 				&Candlestick{
 					OpenTime:  time.Date(2021, 9, 29, 20, 36, 00, 0, location),
@@ -418,6 +418,7 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			testCase.mockBehavior()
 
+			testlog.logs = []string{}
 			err := bdb.saveCandlestick(
 				testlog,
 				testCase.inputInterval,
@@ -427,7 +428,7 @@ func Test_binanceDatabase_saveCandlestick(t *testing.T) {
 			if testCase.wantErr {
 				require.Error(t, err)
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, err, testlog.logs)
 			}
 		})
 	}
