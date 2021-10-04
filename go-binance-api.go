@@ -293,7 +293,7 @@ func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, 
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	tx, err := bdb.db.BeginTx(ctx, nil)
@@ -307,7 +307,7 @@ func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, 
 	args := []interface{}{}
 	var textArgs string
 	for _, c := range list {
-		if kol > 50 {
+		if kol > 100 {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
 					"VALUES "+textArgs[:len(textArgs)-1]+";", args...,
