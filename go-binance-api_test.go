@@ -493,14 +493,14 @@ func Test_queryRange(t *testing.T) {
 	require.True(t, now.AddDate(0, 0, -2).Add(1000*time.Minute).Equal(list[1].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
 		now.AddDate(0, 0, -2).Add(1000*time.Minute), list[1].OpenTime))
 
-	require.True(t, now.AddDate(0, 0, -2).Add(1001*time.Minute).Equal(list[2].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
-		now.AddDate(0, 0, -2).Add(1001*time.Minute), list[2].OpenTime))
+	require.True(t, now.AddDate(0, 0, -2).Add(1000*time.Minute).Equal(list[2].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
+		now.AddDate(0, 0, -2).Add(1000*time.Minute), list[2].OpenTime))
 
-	require.True(t, now.AddDate(0, 0, -2).Add(2001*time.Minute).Equal(list[3].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
-		now.AddDate(0, 0, -2).Add(2001*time.Minute), list[3].OpenTime))
+	require.True(t, now.AddDate(0, 0, -2).Add(2000*time.Minute).Equal(list[3].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
+		now.AddDate(0, 0, -2).Add(2000*time.Minute), list[3].OpenTime))
 
-	require.True(t, now.AddDate(0, 0, -2).Add(2002*time.Minute).Equal(list[4].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
-		now.AddDate(0, 0, -2).Add(2002*time.Minute), list[4].OpenTime))
+	require.True(t, now.AddDate(0, 0, -2).Add(2000*time.Minute).Equal(list[4].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
+		now.AddDate(0, 0, -2).Add(2000*time.Minute), list[4].OpenTime))
 
 	require.True(t, now.Equal(list[5].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
 		now, list[5].OpenTime))
