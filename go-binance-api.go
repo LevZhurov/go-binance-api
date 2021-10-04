@@ -103,8 +103,10 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 	if len(list) == 0 {
 		list = b.queryRange(log, b, symbol, interval, start, end)
 
-		//сохранение в БД
-		b.db.saveCandlestick(log, interval, symbol, list)
+		if len(list) > 0 {
+			//сохранение в БД
+			b.db.saveCandlestick(log, interval, symbol, list)
+		}
 	} else {
 		//определяем отсутствующие диапазоны
 		intervalDuration := getTimeIntervalDuration(log, interval)
@@ -116,11 +118,12 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		if start.Before(list[0].OpenTime) {
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(log, b, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
+			if len(rangeList) > 0 {
+				//сохранение в БД
+				b.db.saveCandlestick(log, interval, symbol, rangeList)
 
-			//сохранение в БД
-			b.db.saveCandlestick(log, interval, symbol, rangeList)
-
-			list = append(rangeList, list...)
+				list = append(rangeList, list...)
+			}
 		}
 
 		last := list[0].OpenTime
@@ -136,16 +139,15 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 
 				//запрашиваем свечи пустого диапазона
 				rangeList := b.queryRange(log, b, symbol, interval, emptyStart, emptyEnd)
+				if len(rangeList) > 0 {
+					//сохранение в БД
+					b.db.saveCandlestick(log, interval, symbol, rangeList)
 
-				//сохранение в БД
-				b.db.saveCandlestick(log, interval, symbol, rangeList)
-
-				list = append(
-					append(list[i:], rangeList...),
-					list[:i]...,
-				)
-
-				//last = last.Add(intervalDuration)
+					list = append(
+						append(list[i:], rangeList...),
+						list[:i]...,
+					)
+				}
 			}
 
 			last = last.Add(intervalDuration)
@@ -156,10 +158,12 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 			//запрашиваем свечи пустого диапазона
 			rangeList := b.queryRange(log, b, symbol, interval, last, end)
 
-			//сохранение в БД
-			b.db.saveCandlestick(log, interval, symbol, rangeList)
+			if len(rangeList) > 0 {
+				//сохранение в БД
+				b.db.saveCandlestick(log, interval, symbol, rangeList)
 
-			list = append(list, rangeList...)
+				list = append(list, rangeList...)
+			}
 		}
 	}
 
