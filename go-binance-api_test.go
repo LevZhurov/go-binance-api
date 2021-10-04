@@ -554,6 +554,7 @@ func Test_parseInterfaceToTime(t *testing.T) {
 		{now.UnixNano() / int64(time.Millisecond), now},
 		{"1499040000000", time.Unix(0, 0)},
 		{1499040000000, time.Date(2017, 7, 3, 3, 0, 0, 0, time.Local)},
+		{1598703162000, time.Date(2020, 8, 29, 15, 12, 42, 0, time.Local)},
 	}
 	for _, testCase := range testTable {
 		require.True(t, testCase.output.Equal(parseInterfaceToTime(testlog, testCase.input)),

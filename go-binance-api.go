@@ -257,12 +257,12 @@ func (bdb *binanceDatabase) queryCandlestickSql(log logger, symbol string, inter
 			return nil
 		}
 
-		ot, err := time.ParseInLocation("2006-01-02 15:04:05", OpenTime, time.Local)
+		ot, err := time.ParseInLocation("2006-01-02 15:04:05", OpenTime, time.UTC)
 		if err != nil {
 			log.Println(err, string(debug.Stack()))
 			return nil
 		}
-		ct, err := time.ParseInLocation("2006-01-02 15:04:05", CloseTime, time.Local)
+		ct, err := time.ParseInLocation("2006-01-02 15:04:05", CloseTime, time.UTC)
 		if err != nil {
 			log.Println(err, string(debug.Stack()))
 			return nil
