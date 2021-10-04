@@ -427,7 +427,7 @@ func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals,
 			return list
 		}
 		list = append(list, l...)
-		startRange = endRange.Add(intervalDuration)
+		startRange = endRange /*.Add(intervalDuration)*/
 		endRange = startRange.Add(1000 * intervalDuration)
 	}
 
