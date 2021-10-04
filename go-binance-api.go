@@ -282,9 +282,11 @@ func (bdb *binanceDatabase) queryCandlestickSql(log logger, symbol string, inter
 		})
 	}
 
-	log.Printf("queryCandlestickSql return len(%v) start %v, end %v",
-		len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
-	)
+	if len(list) > 0 {
+		log.Printf("queryCandlestickSql return len(%v) start %v, end %v",
+			len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
+		)
+	}
 	return list
 }
 func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, symbol string, list []*Candlestick) error {
