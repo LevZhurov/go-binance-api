@@ -218,7 +218,7 @@ func (bdb *binanceDatabase) queryCandlestickSql(log logger, symbol string, inter
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	rows, err := bdb.db.QueryContext(ctx, fmt.Sprintf(
@@ -293,7 +293,7 @@ func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, 
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	tx, err := bdb.db.BeginTx(ctx, nil)
