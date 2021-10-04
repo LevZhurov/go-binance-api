@@ -268,13 +268,13 @@ func (bdb *binanceDatabase) queryCandlestickSql(log logger, symbol string, inter
 			return nil
 		}
 		list = append(list, &Candlestick{
-			OpenTime:  ot,
+			OpenTime:  ot.In(time.Local),
 			Open:      Open,
 			High:      High,
 			Low:       Low,
 			Close:     Close,
 			Volume:    Volume,
-			CloseTime: ct,
+			CloseTime: ct.In(time.Local),
 		})
 	}
 
