@@ -503,10 +503,10 @@ func (bs *binanceSite) tryQueryCandlestickRange(symbol string, interval TimeInte
 	}
 	param += "&interval=" + string(interval)
 	if !startTime.IsZero() {
-		param += "&startTime=" + fmt.Sprintf("%v", startTime.UnixNano()/int64(time.Millisecond))
+		param += "&startTime=" + fmt.Sprintf("%v", startTime.In(time.UTC).UnixNano()/int64(time.Millisecond))
 	}
 	if !endTime.IsZero() {
-		param += "&endTime=" + fmt.Sprintf("%v", endTime.UnixNano()/int64(time.Millisecond))
+		param += "&endTime=" + fmt.Sprintf("%v", endTime.In(time.UTC).UnixNano()/int64(time.Millisecond))
 	}
 	if limit != 0 {
 		param += "&limit=" + fmt.Sprintf("%v", limit)
