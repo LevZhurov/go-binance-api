@@ -307,7 +307,7 @@ func (bdb *binanceDatabase) saveCandlestick(log logger, interval TimeIntervals, 
 	args := []interface{}{}
 	var textArgs string
 	for _, c := range list {
-		if kol > 100 {
+		if kol > 50 {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO candlestick(`interval`, symbol, open_time, open, close, high, low, volume, close_time) "+
 					"VALUES "+textArgs[:len(textArgs)-1]+";", args...,
