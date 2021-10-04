@@ -74,7 +74,7 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	//в базе пусто
 	///
 	var isQueryRange bool
-	queryRange := func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	queryRange := func(lo logger, bin *binance, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 		isQueryRange = true
 		return []*Candlestick{
 			&Candlestick{Open: 2.5},
@@ -100,7 +100,7 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	//в базе есть данные полностью
 	///
 	isQueryRange = false
-	queryRange = func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	queryRange = func(lo logger, bin *binance, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 		isQueryRange = true
 		return []*Candlestick{}
 	}
@@ -133,7 +133,7 @@ func Test_binance_QueryCandlestickList(t *testing.T) {
 	now, _ := time.Parse("2006-01-02 15:04:05", "2021-08-31 03:00:00")
 	now = now.Truncate(24 * time.Hour)
 	isQueryRange = false
-	queryRange = func(bin *binance, lo logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+	queryRange = func(lo logger, bin *binance, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 		//lo.Printf("queryRange start %v end %v\n", startTime, endTime)
 		isQueryRange = true
 		if startTime.Equal(endTime) {
@@ -439,7 +439,7 @@ type binanceSite_queryCandlestickRange struct {
 	list       [][]*Candlestick
 }
 
-func (bs *binanceSite_queryCandlestickRange) tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
+func (bs *binanceSite_queryCandlestickRange) tryQueryCandlestickRange(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
 	l := bs.list[0]
 	bs.list = bs.list[1:]
 	ra := bs.retryAfter[0]
@@ -449,7 +449,7 @@ func (bs *binanceSite_queryCandlestickRange) tryQueryCandlestickRange(symbol str
 
 func Test_queryCandlestickRange(t *testing.T) {
 	//t.Parallel()
-	autotest.FunctionTesting(t, queryCandlestickRange)
+	autotest.FunctionTesting(t, queryCandlestickRange, testlog)
 
 	list1 := []*Candlestick{
 		&Candlestick{},
@@ -469,23 +469,23 @@ func Test_queryCandlestickRange(t *testing.T) {
 		queryCandlestickRange: queryCandlestickRange,
 	}
 	start := time.Now()
-	require.Equal(t, list2, bin.queryCandlestickRange(bin, "", "", time.Time{}, time.Time{}, 0))
+	require.Equal(t, list2, bin.queryCandlestickRange(testlog, bin, "", "", time.Time{}, time.Time{}, 0))
 	require.True(t, start.Add(time.Second).Before(time.Now()))
 }
 
 func Test_queryRange(t *testing.T) {
-	autotest.FunctionTesting(t, queryRange, nil, testlog)
+	autotest.FunctionTesting(t, queryRange, testlog)
 
 	now := time.Now().Truncate(24 * time.Hour)
-	list := queryRange(&binance{
-		queryCandlestickRange: func(bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
+	list := queryRange(testlog, &binance{
+		queryCandlestickRange: func(log logger, bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
 			list := []*Candlestick{
 				&Candlestick{OpenTime: startRange},
 				&Candlestick{OpenTime: endRange},
 			}
 			return list
 		},
-	}, newLogCollector(), "symbol", TI_1m, now.AddDate(0, 0, -2), now)
+	}, "symbol", TI_1m, now.AddDate(0, 0, -2), now)
 
 	require.Equal(t, 6, len(list))
 	require.True(t, now.AddDate(0, 0, -2).Equal(list[0].OpenTime), fmt.Sprintf("expected: %v, actual: %v",
@@ -652,9 +652,9 @@ func Test_newBinanceSite(t *testing.T) {
 }
 
 //go:linkname t_binanceSite_tryQueryCandlestickRange github.com/LevZhurov/go-binance-api.(*binanceSite).tryQueryCandlestickRange
-func t_binanceSite_tryQueryCandlestickRange(bs *binanceSite, symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string)
+func t_binanceSite_tryQueryCandlestickRange(bs *binanceSite, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string)
 func Test_binanceSite_tryQueryCandlestickRange(t *testing.T) {
-	autotest.FunctionTesting(t, t_binanceSite_tryQueryCandlestickRange)
+	autotest.FunctionTesting(t, t_binanceSite_tryQueryCandlestickRange, nil, testlog)
 
 	log.SetOutput(os.Stdout)
 	defer log.SetOutput(ioutil.Discard)
@@ -858,6 +858,7 @@ func Test_binanceSite_tryQueryCandlestickRange(t *testing.T) {
 				queryCandlestick: "",                //api/v3/klines
 			}
 			list, uw, ra := bs.tryQueryCandlestickRange(
+				testlog,
 				"BTCUSDT",
 				TI_1d,
 				testCase.timeStart,

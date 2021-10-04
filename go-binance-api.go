@@ -55,8 +55,8 @@ type (
 	binance struct {
 		db                    databaser
 		site                  binanceSiter
-		queryRange            func(bin *binance, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
-		queryCandlestickRange func(bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick
+		queryRange            func(log logger, bin *binance, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
+		queryCandlestickRange func(log logger, bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick
 	}
 	Binancer interface {
 		QueryCandlestickList(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick
@@ -101,7 +101,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 	list := b.db.queryCandlestickSql(log, symbol, interval, start, end)
 
 	if len(list) == 0 {
-		list = b.queryRange(b, log, symbol, interval, start, end)
+		list = b.queryRange(log, b, symbol, interval, start, end)
 
 		//сохранение в БД
 		b.db.saveCandlestick(log, interval, symbol, list)
@@ -115,7 +115,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		//с начала диапазона
 		if start.Before(list[0].OpenTime) {
 			//запрашиваем свечи пустого диапазона
-			rangeList := b.queryRange(b, log, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
+			rangeList := b.queryRange(log, b, symbol, interval, start, list[0].OpenTime.Add(-intervalDuration))
 
 			//сохранение в БД
 			b.db.saveCandlestick(log, interval, symbol, rangeList)
@@ -135,7 +135,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 				emptyEnd := last.Add(-intervalDuration)
 
 				//запрашиваем свечи пустого диапазона
-				rangeList := b.queryRange(b, log, symbol, interval, emptyStart, emptyEnd)
+				rangeList := b.queryRange(log, b, symbol, interval, emptyStart, emptyEnd)
 
 				//сохранение в БД
 				b.db.saveCandlestick(log, interval, symbol, rangeList)
@@ -154,7 +154,7 @@ func (b *binance) QueryCandlestickList(log logger, symbol string, interval TimeI
 		//с конца диапазона
 		if last.Before(end) {
 			//запрашиваем свечи пустого диапазона
-			rangeList := b.queryRange(b, log, symbol, interval, last, end)
+			rangeList := b.queryRange(log, b, symbol, interval, last, end)
 
 			//сохранение в БД
 			b.db.saveCandlestick(log, interval, symbol, rangeList)
@@ -402,7 +402,7 @@ func getTimeIntervalDuration(log logger, interval TimeIntervals) time.Duration {
 	}
 }
 
-func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
+func queryRange(log logger, bin *binance, symbol string, interval TimeIntervals, startTime, endTime time.Time) []*Candlestick {
 	if bin == nil {
 		log.Println("bin *binance is nil", string(debug.Stack()))
 		return nil
@@ -428,7 +428,7 @@ func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals,
 	limit := 1000
 	list := []*Candlestick{}
 	for !endRange.After(endTime) {
-		l := bin.queryCandlestickRange(bin, symbol, interval, startRange, endRange, limit)
+		l := bin.queryCandlestickRange(log, bin, symbol, interval, startRange, endRange, limit)
 		if l == nil {
 			return list
 		}
@@ -438,19 +438,21 @@ func queryRange(bin *binance, log logger, symbol string, interval TimeIntervals,
 	}
 
 	limit = int((endTime.Sub(startRange) / intervalDuration).Nanoseconds()) + 1
-	l := bin.queryCandlestickRange(bin, symbol, interval, startRange, endTime, limit)
+	l := bin.queryCandlestickRange(log, bin, symbol, interval, startRange, endTime, limit)
 	if l == nil {
 		return list
 	}
 	list = append(list, l...)
 
-	log.Printf("queryRange return len(%v) start %v, end %v",
-		len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
-	)
+	if len(list) > 0 {
+		log.Printf("queryRange return len(%v) start %v, end %v",
+			len(list), list[0].OpenTime, list[len(list)-1].OpenTime,
+		)
+	}
 	return list
 }
 
-func queryCandlestickRange(bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
+func queryCandlestickRange(log logger, bin *binance, symbol string, interval TimeIntervals, startRange, endRange time.Time, limit int) []*Candlestick {
 	if bin == nil {
 		log.Println("bin *binance is nil", string(debug.Stack()))
 		return nil
@@ -462,7 +464,7 @@ func queryCandlestickRange(bin *binance, symbol string, interval TimeIntervals, 
 	retryAfter := "try"
 	var list []*Candlestick
 	for retryAfter != "" {
-		list, _, retryAfter = bin.site.tryQueryCandlestickRange(symbol, interval, startRange, endRange, limit)
+		list, _, retryAfter = bin.site.tryQueryCandlestickRange(log, symbol, interval, startRange, endRange, limit)
 		if retryAfter != "" {
 			after, err := strconv.Atoi(retryAfter)
 			if err != nil {
@@ -484,7 +486,7 @@ type (
 		queryCandlestick string
 	}
 	binanceSiter interface {
-		tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string)
+		tryQueryCandlestickRange(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string)
 	}
 )
 
@@ -495,7 +497,7 @@ func newBinanceSite() *binanceSite {
 		queryCandlestick: "api/v3/klines",
 	}
 }
-func (bs *binanceSite) tryQueryCandlestickRange(symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
+func (bs *binanceSite) tryQueryCandlestickRange(log logger, symbol string, interval TimeIntervals, startTime, endTime time.Time, limit int) (list []*Candlestick, usedWeight, retryAfter string) {
 	var param string
 
 	if symbol == "" {
